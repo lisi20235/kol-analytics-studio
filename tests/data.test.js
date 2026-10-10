@@ -1,0 +1,10 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {number,recognize,clean,metrics,totals} from '../src/data.js';
+test('识别中英文字段',()=>assert.equal(recognize(['Creator','曝光量','费用']).name,'Creator'));
+test('数字清洗与无效值',()=>{assert.equal(number('￥12,300'),12300);assert.equal(number('1.2万'),12000);assert.equal(number('2k'),2000);assert.equal(number('-5'),null);assert.equal(number('abc'),null);assert.equal(number(''),null);});
+test('指标与零分母',()=>{let r=metrics({cost:100,impressions:1000,engagements:50});assert.equal(r.cpm,100);assert.equal(r.cpe,2);assert.equal(r.er,5);assert.equal(metrics({cost:0,impressions:0,engagements:0}).cpm,null);});
+test('去重、跳过缺失名称、保留缺失费用',()=>{let map=recognize(['name','likes','cost']);let r=clean([{name:'A',likes:10,cost:0},{name:'A',likes:10,cost:0},{name:'',likes:20},{name:'B',likes:0,cost:'-2'}],map);assert.equal(r.rows.length,2);assert.equal(r.issues.length,3);assert.equal(r.rows[0].engagements,10);assert.equal(r.rows[1].cost,null);});
+test('加权总指标只使用成对有效记录',()=>{let t=totals([{cost:100,impressions:1000,engagements:100},{cost:null,impressions:100000,engagements:1000},{cost:200,impressions:null,engagements:0}]);assert.equal(t.cpm,100);assert.equal(t.cpe,1);assert.equal(t.er,1100/101000*100);});
+test('显式互动量优先且零互动不被覆盖',()=>{let r=clean([{name:'A',engagements:0,likes:100}],recognize(['name','engagements','likes']));assert.equal(r.rows[0].engagements,0);});
+test('空数据汇总',()=>assert.equal(totals([]).cost,null));
